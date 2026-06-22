@@ -1,8 +1,8 @@
 import { Pressable, StyleSheet, type PressableProps } from 'react-native';
 
+import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { ThemedText } from '@/components/themed-text';
 
 type SecondaryButtonProps = PressableProps & {
   title: string;

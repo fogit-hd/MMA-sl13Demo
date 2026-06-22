@@ -2,8 +2,8 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Radius, Spacing } from '@/constants/theme';
 import { ThemedText } from '@/components/themed-text';
+import { Radius, Spacing } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 
 type ImageAttachmentSheetProps = {
