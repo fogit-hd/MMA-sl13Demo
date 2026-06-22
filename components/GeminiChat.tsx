@@ -7,7 +7,6 @@ import {
   Platform,
   StyleSheet,
   TextInput,
-  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -24,13 +23,13 @@ import { ChatSendButton } from '@/components/chat/chat-send-button';
 import { ImageAttachmentSheet } from '@/components/chat/image-attachment-sheet';
 import { ScalePressable } from '@/components/chat/scale-pressable';
 import { TypingIndicator } from '@/components/chat/typing-indicator';
-import { Radius, Spacing } from '@/constants/theme';
 import { ThemedText } from '@/components/themed-text';
+import { Radius, Spacing } from '@/constants/theme';
+import { useThemeColor } from '@/hooks/use-theme-color';
 import { useAssistantTypewriter } from '@/hooks/useAssistantTypewriter';
 import { useImagePicker } from '@/hooks/useImagePicker';
 import { useKeyboardBottomInset } from '@/hooks/useKeyboardBottomInset';
 import { useSmartAutoScroll } from '@/hooks/useSmartAutoScroll';
-import { useThemeColor } from '@/hooks/use-theme-color';
 import {
   GeminiServiceError,
   generateImagesAnalysis,
@@ -68,6 +67,7 @@ export function GeminiChat() {
     error: pickerError,
     pickImage,
     takePhoto,
+    pasteFromClipboard,
     removeImageAt,
     clearImages,
   } = useImagePicker();
@@ -83,7 +83,8 @@ export function GeminiChat() {
 
   const displayError = error ?? pickerError;
 
-  const { listRef, handleScroll, scrollToEnd, stickToBottom } = useSmartAutoScroll<ChatMessage>();
+  const { listRef, handleScroll, scrollToEnd, stickToBottom, isUserScrollingUpRef } =
+    useSmartAutoScroll<ChatMessage>();
 
   const { streamReply, isStreaming, cancelStream } = useAssistantTypewriter<ChatMessage>(
     setMessages,
@@ -98,9 +99,19 @@ export function GeminiChat() {
   const keyboardBottomInset = useKeyboardBottomInset();
 
   useEffect(() => {
-    const showSub = Keyboard.addListener('keyboardDidShow', () => scrollToEnd());
+    const showSub = Keyboard.addListener('keyboardDidShow', () => {
+      if (!isUserScrollingUpRef.current) {
+        scrollToEnd();
+      }
+    });
     return () => showSub.remove();
-  }, [scrollToEnd]);
+  }, [scrollToEnd, isUserScrollingUpRef]);
+
+  const handleContentSizeChange = useCallback(() => {
+    if (!isUserScrollingUpRef.current) {
+      scrollToEnd({ animated: false });
+    }
+  }, [scrollToEnd, isUserScrollingUpRef]);
 
   const appendMessage = useCallback(
     (message: ChatMessage, options?: { forceScroll?: boolean }) => {
@@ -130,6 +141,12 @@ export function GeminiChat() {
     setSheetVisible(false);
     const uri = await takePhoto();
     if (uri) setError(null);
+  };
+
+  const handlePasteFromClipboard = async () => {
+    setSheetVisible(false);
+    const uris = await pasteFromClipboard();
+    if (uris.length > 0) setError(null);
   };
 
   const handleStop = useCallback(() => {
@@ -223,36 +240,35 @@ export function GeminiChat() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={0}>
         <View style={styles.flex}>
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-            <View style={styles.messageListWrap}>
-              <FlatList
-                ref={listRef}
-                style={styles.messageList}
-                data={messages}
-                keyExtractor={(item) => item.id}
-                renderItem={renderItem}
-                contentContainerStyle={styles.listContent}
-                ItemSeparatorComponent={() => <View style={styles.separator} />}
-                onScroll={handleScroll}
-                scrollEventThrottle={16}
-                onContentSizeChange={() => scrollToEnd()}
-                keyboardShouldPersistTaps="handled"
-                keyboardDismissMode="on-drag"
-                ListFooterComponent={
-                  isLoading ? (
-                    <TypingIndicator
-                      dotColor={textSecondary}
-                      bubbleStyle={{
-                        backgroundColor: surface,
-                        borderColor: border,
-                        marginTop: CHAT_MESSAGE_GAP,
-                      }}
-                    />
-                  ) : null
-                }
-              />
-            </View>
-          </TouchableWithoutFeedback>
+          <FlatList
+            ref={listRef}
+            style={styles.messageList}
+            data={messages}
+            keyExtractor={(item) => item.id}
+            renderItem={renderItem}
+            contentContainerStyle={styles.listContent}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
+            onContentSizeChange={handleContentSizeChange}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            nestedScrollEnabled
+            showsVerticalScrollIndicator
+            removeClippedSubviews={false}
+            ListFooterComponent={
+              isLoading ? (
+                <TypingIndicator
+                  dotColor={textSecondary}
+                  bubbleStyle={{
+                    backgroundColor: surface,
+                    borderColor: border,
+                    marginTop: CHAT_MESSAGE_GAP,
+                  }}
+                />
+              ) : null
+            }
+          />
 
           <View
             style={[
@@ -324,6 +340,7 @@ export function GeminiChat() {
         onClose={() => setSheetVisible(false)}
         onPickLibrary={handlePickFromLibrary}
         onTakePhoto={handleTakePhoto}
+        onPasteClipboard={handlePasteFromClipboard}
       />
     </SafeAreaView>
   );
@@ -336,14 +353,10 @@ const styles = StyleSheet.create({
   flex: {
     flex: 1,
   },
-  messageListWrap: {
-    flex: 1,
-  },
   messageList: {
     flex: 1,
   },
   listContent: {
-    flexGrow: 1,
     paddingHorizontal: CHAT_HORIZONTAL_PADDING,
     paddingTop: Spacing.md,
     paddingBottom: Spacing.lg,

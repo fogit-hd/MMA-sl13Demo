@@ -11,6 +11,8 @@ type ImageAttachmentSheetProps = {
   onClose: () => void;
   onPickLibrary: () => void;
   onTakePhoto: () => void;
+  onPasteClipboard: () => void;
+  showPasteOption?: boolean;
 };
 
 export function ImageAttachmentSheet({
@@ -18,6 +20,8 @@ export function ImageAttachmentSheet({
   onClose,
   onPickLibrary,
   onTakePhoto,
+  onPasteClipboard,
+  showPasteOption = true,
 }: ImageAttachmentSheetProps) {
   const insets = useSafeAreaInsets();
   const surface = useThemeColor({}, 'surface');
@@ -49,6 +53,18 @@ export function ImageAttachmentSheet({
             <MaterialIcons name="photo-camera" size={22} color={text} />
             <ThemedText type="defaultSemiBold">Chụp ảnh</ThemedText>
           </Pressable>
+
+          {showPasteOption ? (
+            <Pressable style={[styles.option, { borderBottomColor: border }]} onPress={onPasteClipboard}>
+              <MaterialIcons name="content-paste" size={22} color={text} />
+              <View style={styles.optionText}>
+                <ThemedText type="defaultSemiBold">Dán ảnh từ clipboard</ThemedText>
+                <ThemedText type="caption" tone="secondary">
+                  Copy ảnh trước (Gallery, Chrome…), rồi chọn dán
+                </ThemedText>
+              </View>
+            </Pressable>
+          ) : null}
 
           <Pressable style={styles.cancel} onPress={onClose}>
             <ThemedText style={{ color: textSecondary }}>Hủy</ThemedText>
@@ -85,6 +101,10 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
     paddingVertical: Spacing.lg,
     borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  optionText: {
+    flex: 1,
+    gap: Spacing.xs,
   },
   cancel: {
     alignItems: 'center',

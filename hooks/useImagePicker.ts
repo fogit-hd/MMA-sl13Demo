@@ -1,4 +1,6 @@
+import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useCallback, useState } from 'react';
 
 import { CHAT_MAX_ATTACHMENTS } from '@/components/chat/chat-constants';
@@ -10,6 +12,7 @@ type UseImagePickerResult = {
   error: string | null;
   pickImage: () => Promise<string[]>;
   takePhoto: () => Promise<string | null>;
+  pasteFromClipboard: () => Promise<string[]>;
   removeImageAt: (index: number) => void;
   clearImages: () => void;
 };
@@ -86,6 +89,39 @@ export function useImagePicker(): UseImagePickerResult {
     return processAssets(uris);
   }, [processAssets, remainingSlots]);
 
+  const pasteFromClipboard = useCallback(async () => {
+    if (remainingSlots === 0) {
+      setError(`Tối đa ${CHAT_MAX_ATTACHMENTS} ảnh mỗi tin nhắn.`);
+      return [];
+    }
+
+    try {
+      const hasImage = await Clipboard.hasImageAsync();
+      if (!hasImage) {
+        setError('Clipboard không có ảnh. Copy ảnh từ Gallery hoặc trình duyệt trước.');
+        return [];
+      }
+
+      const image = await Clipboard.getImageAsync({ format: 'png' });
+      if (!image?.data) {
+        setError('Không đọc được ảnh từ clipboard.');
+        return [];
+      }
+
+      const base64 = image.data.includes(',') ? image.data.split(',')[1] : image.data;
+      const uri = `${FileSystem.cacheDirectory}clipboard-${Date.now()}.png`;
+      await FileSystem.writeAsStringAsync(uri, base64, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      return processAssets([uri]);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Không thể dán ảnh từ clipboard.';
+      setError(message);
+      return [];
+    }
+  }, [processAssets, remainingSlots]);
+
   const takePhoto = useCallback(async () => {
     if (remainingSlots === 0) {
       setError(`Tối đa ${CHAT_MAX_ATTACHMENTS} ảnh mỗi tin nhắn.`);
@@ -127,6 +163,7 @@ export function useImagePicker(): UseImagePickerResult {
     error,
     pickImage,
     takePhoto,
+    pasteFromClipboard,
     removeImageAt,
     clearImages,
   };
