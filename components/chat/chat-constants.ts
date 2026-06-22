@@ -1,0 +1,11 @@
+export const CHAT_HORIZONTAL_PADDING = 16;
+export const CHAT_MESSAGE_GAP = 10;
+export const CHAT_BUBBLE_RADIUS = 20;
+export const CHAT_BUBBLE_TAIL_RADIUS = 6;
+export const CHAT_BUBBLE_MAX_WIDTH = '82%';
+export const CHAT_INPUT_RADIUS = 24;
+export const CHAT_SCROLL_BOTTOM_THRESHOLD = 100;
+export const CHAT_TYPEWRITER_CHAR_DELAY_MS = 20;
+export const CHAT_MAX_ATTACHMENTS = 10;
+export const CHAT_MESSAGE_IMAGE_WIDTH = 160;
+export const CHAT_MESSAGE_IMAGE_HEIGHT = 120;

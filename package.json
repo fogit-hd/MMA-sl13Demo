@@ -1,26 +1,42 @@
 {
   "name": "mma-sl13demo",
-  "main": "expo-router/entry",
+  "main": "index.js",
   "version": "1.0.0",
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "npm run sync:firebase && expo run:android",
+    "ios": "expo run:ios",
+    "start:dev-client": "expo start --dev-client",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "sync:firebase": "node ./scripts/sync-firebase-env.js",
+    "build:apk": "npm run sync:firebase && cd android && .\\gradlew.bat :app:processReleaseGoogleServices assembleRelease",
+    "rebuild:apk": "npm run sync:firebase && powershell -NoProfile -Command \"Remove-Item -Recurse -Force android/app/build/outputs/apk/release,android/app/build/intermediates/apk -ErrorAction SilentlyContinue\" && cd android && .\\gradlew.bat :app:processReleaseGoogleServices assembleRelease --no-daemon",
+    "build:debug": "npm run sync:firebase && cd android && .\\gradlew.bat -PreactNativeArchitectures=arm64-v8a,x86_64 :app:processDebugGoogleServices assembleDebug",
+    "android:emulator": "npm run build:debug && adb install -r android/app/build/outputs/apk/debug/app-debug.apk"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
+    "@google/generative-ai": "^0.24.1",
+    "@react-native-firebase/app": "^24.1.1",
+    "@react-native-firebase/messaging": "^24.1.1",
     "@react-navigation/bottom-tabs": "^7.4.0",
     "@react-navigation/elements": "^2.6.3",
     "@react-navigation/native": "^7.1.8",
     "expo": "~54.0.34",
+    "expo-build-properties": "~1.0.10",
     "expo-constants": "~18.0.13",
+    "expo-dev-client": "~6.0.21",
+    "expo-device": "~8.0.10",
+    "expo-file-system": "~19.0.23",
     "expo-font": "~14.0.11",
     "expo-haptics": "~15.0.8",
     "expo-image": "~3.0.11",
+    "expo-image-manipulator": "~14.0.8",
+    "expo-image-picker": "~17.0.11",
     "expo-linking": "~8.0.12",
+    "expo-notifications": "~0.32.17",
     "expo-router": "~6.0.23",
     "expo-splash-screen": "~31.0.13",
     "expo-status-bar": "~3.0.9",
@@ -31,17 +47,17 @@
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
     "react-native-gesture-handler": "~2.28.0",
-    "react-native-worklets": "0.5.1",
     "react-native-reanimated": "~4.1.1",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
-    "react-native-web": "~0.21.0"
+    "react-native-web": "~0.21.0",
+    "react-native-worklets": "0.5.1"
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
-    "typescript": "~5.9.2",
     "eslint": "^9.25.0",
-    "eslint-config-expo": "~10.0.0"
+    "eslint-config-expo": "~10.0.0",
+    "typescript": "~5.9.2"
   },
   "private": true
 }

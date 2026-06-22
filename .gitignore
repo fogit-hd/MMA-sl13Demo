@@ -31,7 +31,12 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
 .env*.local
+
+# Firebase native config (tải từ Firebase Console, không commit)
+google-services.json
+GoogleService-Info.plist
 
 # typescript
 *.tsbuildinfo

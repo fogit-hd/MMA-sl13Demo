@@ -1,98 +1,241 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { useMemo } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Share,
+  StyleSheet,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
+import { NotificationBell } from '@/components/notifications/notification-bell';
+import { NotificationListItem } from '@/components/notifications/notification-list-item';
+import { InfoCard } from '@/components/ui/info-card';
+import { PrimaryButton } from '@/components/ui/primary-button';
+import { SecondaryButton } from '@/components/ui/secondary-button';
+import { SectionHeader } from '@/components/ui/section-header';
+import { StatusChip } from '@/components/ui/status-chip';
+import { Radius, Spacing } from '@/constants/theme';
+import { useNotificationHistory } from '@/contexts/notification-history-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import { useThemeColor } from '@/hooks/use-theme-color';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
+import { displayForegroundNotification } from '@/services/pushNotificationService';
+import { getFirebaseDiagnostics } from '@/utils/firebase-diagnostics';
+import type { InboxNotification } from '@/types/notification';
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const insets = useSafeAreaInsets();
+  const tokenBoxBg = useThemeColor({}, 'surfaceMuted');
+  const tokenBoxBorder = useThemeColor({}, 'border');
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
+  const { notifications, unreadCount, addFromRemoteMessage, markAllAsRead } =
+    useNotificationHistory();
+
+  const { fcmToken, tokenError, permissionStatus, isLoading, register } = usePushNotifications({
+    onTokenReceived: (token) => {
+      console.log('[Home] FCM token ready:', token);
+    },
+  });
+
+  const firebaseDiagnostics = useMemo(() => getFirebaseDiagnostics(), []);
+  const firebaseProjectId = firebaseDiagnostics.jsProjectId || 'chưa cấu hình';
+  const firebaseSenderId = firebaseDiagnostics.nativeSenderId || '';
+
+  const permissionTone = useMemo(() => {
+    if (permissionStatus === 'granted') return 'success';
+    if (permissionStatus === 'denied') return 'danger';
+    if (permissionStatus === 'unsupported') return 'warning';
+    return 'neutral';
+  }, [permissionStatus]);
+
+  const permissionLabel = useMemo(() => {
+    if (permissionStatus === 'granted') return 'Quyền thông báo: Đã cấp';
+    if (permissionStatus === 'denied') return 'Quyền thông báo: Đã từ chối';
+    if (permissionStatus === 'unsupported') return 'Môi trường không hỗ trợ Push';
+    return 'Quyền thông báo: Chưa xác định';
+  }, [permissionStatus]);
+
+  const tokenDescription = useMemo(() => {
+    if (fcmToken) return fcmToken;
+    if (tokenError) return `Lỗi FCM: ${tokenError}`;
+    if (permissionStatus === 'unsupported') return 'Push không hỗ trợ trên iOS Simulator.';
+    if (permissionStatus === 'denied') return 'Bạn cần bật lại quyền thông báo trong Settings.';
+    if (firebaseDiagnostics.needsRebuild) {
+      return 'Native Firebase chưa khớp — chạy npm run build:debug (emulator) hoặc build:apk rồi cài lại app.';
+    }
+    return 'Chưa có FCM token. Nhấn "Xin quyền và lấy token mới".';
+  }, [fcmToken, tokenError, permissionStatus, firebaseDiagnostics.needsRebuild]);
+
+  const handleShareToken = async () => {
+    if (!fcmToken) {
+      Alert.alert('Chưa có token', 'Hãy xin quyền và lấy token trước.');
+      return;
+    }
+    await Share.share({ message: fcmToken });
+  };
+
+  const handleLocalTest = async () => {
+    const testMessage = {
+      notification: {
+        title: 'Test local notification',
+        body: 'Nếu thấy banner này, foreground handler hoạt động đúng.',
+      },
+      data: { source: 'local-test' },
+    };
+    await displayForegroundNotification(testMessage);
+    addFromRemoteMessage(testMessage, 'foreground');
+  };
+
+  const handleBellPress = () => {
+    if (unreadCount === 0) return;
+    markAllAsRead();
+  };
+
+  const renderItem = ({ item }: { item: InboxNotification }) => (
+    <NotificationListItem item={item} />
+  );
+
+  const listHeader = (
+    <View style={styles.headerBlock}>
+      <View style={styles.titleRow}>
+        <View style={styles.titleText}>
+          <ThemedText type="title">Thông báo</ThemedText>
+          <ThemedText tone="secondary">Lịch sử push từ FCM</ThemedText>
+        </View>
+        <NotificationBell unreadCount={unreadCount} onPress={handleBellPress} />
+      </View>
+
+      <InfoCard>
+        <SectionHeader title="FCM Token" description="Dùng để gửi test từ Firebase Console." />
+        <ThemedText type="caption" tone="secondary">
+          JS config: {firebaseProjectId}
+          {firebaseSenderId ? ` (sender ${firebaseSenderId})` : ''}
         </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
+        <ThemedText type="caption" tone={firebaseDiagnostics.configMismatch ? 'danger' : 'secondary'}>
+          Native trong APK: {firebaseDiagnostics.nativeProjectId}
+          {firebaseDiagnostics.configMismatch
+            ? ' — KHÔNG KHỚP! Emulator: npm run build:debug rồi cài lại app.'
+            : ''}
         </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+        <ThemedText type="caption" tone="secondary">
+          Gửi test: Firebase Console → project &quot;{firebaseProjectId}&quot; → Messaging →
+          Send test message → dán token → nhập Title + Body.
+        </ThemedText>
+        <StatusChip label={permissionLabel} tone={permissionTone} />
+        {isLoading ? (
+          <View style={styles.loadingRow}>
+            <ActivityIndicator />
+            <ThemedText tone="secondary">Đang kiểm tra quyền và token...</ThemedText>
+          </View>
+        ) : (
+          <ThemedText
+            selectable
+            type="caption"
+            style={[styles.token, { backgroundColor: tokenBoxBg, borderColor: tokenBoxBorder }]}>
+            {tokenDescription}
+          </ThemedText>
+        )}
+        <PrimaryButton
+          title="Xin quyền và lấy token mới"
+          loading={isLoading}
+          onPress={() => register({ forceRefresh: true })}
+        />
+        <View style={styles.actions}>
+          <SecondaryButton
+            title="Chia sẻ token"
+            onPress={handleShareToken}
+            disabled={!fcmToken}
+            style={styles.actionButton}
+          />
+          <SecondaryButton title="Test local" onPress={handleLocalTest} style={styles.actionButton} />
+        </View>
+      </InfoCard>
+
+      <SectionHeader
+        title="Lịch sử thông báo"
+        description={
+          unreadCount > 0
+            ? `${unreadCount} thông báo chưa đọc — bấm chuông để đánh dấu đã đọc`
+            : 'Chưa có thông báo mới'
+        }
+      />
+    </View>
+  );
+
+  return (
+    <ThemedView style={styles.screen}>
+      <FlatList
+        data={notifications}
+        extraData={unreadCount}
+        keyExtractor={(item) => item.id}
+        renderItem={renderItem}
+        ListHeaderComponent={listHeader}
+        ListEmptyComponent={
+          <ThemedView variant="surfaceMuted" style={styles.emptyBox}>
+            <ThemedText tone="secondary" type="caption">
+              Chưa có thông báo. Gửi test từ Firebase hoặc nhấn Test local.
+            </ThemedText>
+          </ThemedView>
+        }
+        contentContainerStyle={[
+          styles.listContent,
+          { paddingTop: insets.top + Spacing.lg, paddingBottom: insets.bottom + Spacing.xxl },
+        ]}
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
+        showsVerticalScrollIndicator={false}
+      />
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  screen: {
+    flex: 1,
+  },
+  listContent: {
+    paddingHorizontal: Spacing.lg,
+    gap: Spacing.md,
+  },
+  headerBlock: {
+    gap: Spacing.lg,
+    marginBottom: Spacing.md,
+  },
+  titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
+    gap: Spacing.md,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  titleText: {
+    flex: 1,
+    gap: Spacing.xs,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  loadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  token: {
+    padding: Spacing.md,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+  },
+  actions: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  actionButton: {
+    flex: 1,
+  },
+  separator: {
+    height: Spacing.sm,
+  },
+  emptyBox: {
+    borderRadius: Radius.md,
+    padding: Spacing.lg,
+    alignItems: 'center',
   },
 });
